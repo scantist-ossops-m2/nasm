@@ -1692,6 +1692,23 @@ smacro_defined(Context * ctx, const char *name, int nparam, SMacro ** defn,
     return false;
 }
 
+/* param should be a natural number [0; INT_MAX] */
+static int read_param_count(const char *str)
+{
+    int result;
+    bool err;
+
+    result = readnum(str, &err);
+    if (result < 0 || result > INT_MAX) {
+        result = 0;
+        nasm_error(ERR_NONFATAL, "parameter count `%s' is out of bounds [%d; %d]",
+                   str, 0, INT_MAX);
+    } else if (err) {
+        nasm_error(ERR_NONFATAL, "unable to parse parameter count `%s'", str);
+    }
+    return result;
+}
+
 /*
  * Count and mark off the parameters in a multi-line macro call.
  * This is called both from within the multi-line macro expansion
@@ -1913,11 +1930,7 @@ static bool if_condition(Token * tline, enum preproc_token ct)
                   pp_directives[ct]);
         } else {
             searching.nparam_min = searching.nparam_max =
-                readnum(tline->text, &j);
-            if (j)
-                nasm_error(ERR_NONFATAL,
-                      "unable to parse parameter count `%s'",
-                      tline->text);
+                read_param_count(tline->text);
         }
         if (tline && tok_is_(tline->next, "-")) {
             tline = tline->next->next;
@@ -1928,11 +1941,7 @@ static bool if_condition(Token * tline, enum preproc_token ct)
                       "`%s' expects a parameter count after `-'",
                       pp_directives[ct]);
             else {
-                searching.nparam_max = readnum(tline->text, &j);
-                if (j)
-                    nasm_error(ERR_NONFATAL,
-                          "unable to parse parameter count `%s'",
-                          tline->text);
+                searching.nparam_max = read_param_count(tline->text);
                 if (searching.nparam_min > searching.nparam_max) {
                     nasm_error(ERR_NONFATAL,
                           "minimum parameter count exceeds maximum");
@@ -2121,8 +2130,6 @@ static void undef_smacro(Context *ctx, const char *mname)
  */
 static bool parse_mmacro_spec(Token *tline, MMacro *def, const char *directive)
 {
-    bool err;
-
     tline = tline->next;
     skip_white_(tline);
     tline = expand_id(tline);
@@ -2145,11 +2152,7 @@ static bool parse_mmacro_spec(Token *tline, MMacro *def, const char *directive)
     if (!tok_type_(tline, TOK_NUMBER)) {
         nasm_error(ERR_NONFATAL, "`%s' expects a parameter count", directive);
     } else {
-        def->nparam_min = def->nparam_max =
-            readnum(tline->text, &err);
-        if (err)
-            nasm_error(ERR_NONFATAL,
-                  "unable to parse parameter count `%s'", tline->text);
+        def->nparam_min = def->nparam_max = read_param_count(tline->text);
     }
     if (tline && tok_is_(tline->next, "-")) {
         tline = tline->next->next;
@@ -2159,11 +2162,7 @@ static bool parse_mmacro_spec(Token *tline, MMacro *def, const char *directive)
             nasm_error(ERR_NONFATAL,
                   "`%s' expects a parameter count after `-'", directive);
         } else {
-            def->nparam_max = readnum(tline->text, &err);
-            if (err) {
-                nasm_error(ERR_NONFATAL, "unable to parse parameter count `%s'",
-                      tline->text);
-            }
+            def->nparam_max = read_param_count(tline->text);
             if (def->nparam_min > def->nparam_max) {
                 nasm_error(ERR_NONFATAL, "minimum parameter count exceeds maximum");
                 def->nparam_max = def->nparam_min;
